@@ -1,0 +1,6 @@
+massive
+boto3
+numpy 
+pandas
+matplotlib
+scikit-learn
