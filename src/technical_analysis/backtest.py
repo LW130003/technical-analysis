@@ -73,7 +73,7 @@ def run_backtest(df: pd.DataFrame, profit_target: float = 0.03, stop_loss: float
             close_price = final_row['close']
             td = final_row["us_datetime"] - buy_date
             hours_held = int(td.total_seconds() // 3600)
-            exit_reason = 'Time_Limit_48h' if hours_held == max_hours else 'Data_Cutoff_End_of_File'
+            exit_reason = f'Time_Limit_{max_hours}h' if hours_held >= max_hours else 'Data_Cutoff_End_of_File'
             sell_date_str = final_row["us_datetime"].strftime("%Y-%m-%d %H:%M:%S")
         elif first_tp < first_sl:
             # Take Profit hit first. Your exit price is your exact target value.
