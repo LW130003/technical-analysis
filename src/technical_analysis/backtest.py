@@ -133,7 +133,7 @@ def evaluate_run_performance(backtest_df, params_dict):
         
     # compute rate
     win_rate = (backtest_df['exit_reason'] == 'Take_Profit').sum() / total_trades * 100
-    stop_rate = (backtest_df['exit_reason'] == 'Stop_Loss').sum() / total_trades * 100
+    lose_rate = (backtest_df['exit_reason'] == 'Stop_Loss').sum() / total_trades * 100
     timeout_rate = (backtest_df['exit_reason'] == 'Time_Limit').sum() / total_trades * 100
     cutoff_rate = (backtest_df['exit_reason'] == 'Data_Cutoff_End_of_File').sum() / total_trades * 100
     
@@ -143,7 +143,7 @@ def evaluate_run_performance(backtest_df, params_dict):
     ]    
     total_no_cutoff_trades = len(not_cutoff_cases)
     win_rate_adjusted = len(backtest_df[backtest_df['exit_reason'] == 'Take_Profit']) / total_no_cutoff_trades * 100
-    lose_rate_adjuted = len(backtest_df[backtest_df['exit_reason'] == 'Stop_Loss']) / total_no_cutoff_trades * 100
+    lose_rate_adjusted = len(backtest_df[backtest_df['exit_reason'] == 'Stop_Loss']) / total_no_cutoff_trades * 100
     timeout_rate_adjusted = (backtest_df['exit_reason'] == 'Time_Limit').sum() / total_no_cutoff_trades * 100
     
     # compute profit factor
@@ -163,11 +163,11 @@ def evaluate_run_performance(backtest_df, params_dict):
         **params_dict, # Unpacks the parameters used for this run
         "total_trades": total_trades,
         "win_rate": round(win_rate, 2),
-        "stop_rate": round(stop_rate, 2),
+        "lose_rate": round(lose_rate, 2),
         "timeout_rate": round(timeout_rate, 2),
         "cutoff_ratet": round(cutoff_rate, 2),
         "win_rate_adjusted": round(win_rate_adjusted, 2),
-        "stop_rate_adjusted": round(win_rate_adjusted, 2),
+        "lose_rate_adjusted": round(lose_rate_adjusted, 2),
         "timeout_rate_adjusted": round(timeout_rate_adjusted, 2),
         "profit_factor": round(profit_factor, 2),
         "avg_holding_hours": round(avg_holding_hours, 1)
