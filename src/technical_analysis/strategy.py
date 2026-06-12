@@ -115,12 +115,109 @@ def apply_momentum_confirmed_rule(df, params_dict):
     )    
     return df
 
+
+def create_panic_alert(df, params_dict):
+    z_score_threshold = params_dict.get("z_score_threshold", 2)
+    body_ratio_threshold = params_dict.get("body_ratio_threshold", 0.7)
+    
+    condition_panic_selling = (df['IS_RED'] == True) & (df['BODY_RATIO'] >= body_ratio_threshold)
+    condition_stat_extreme  = (df['close'] <= df['bb_lower']) & (df['z_score'].abs() > z_score_threshold)
+    
+    return condition_panic_selling & condition_stat_extreme
+    
+def add_panic_alert_last_n_trading_hours(df, params_dict):
+
+    n_trading_hours = params_dict.get("panic_last_n_trading_hours", 5)
+    
+    def _fn(group):
+        # assume only one ticker, and sorted
+
+        group["ticker"] = group.name
+        group["panic_last_n_trading_hours"] = n_trading_hours        
+        panic_alert_row = create_panic_alert(group, params_dict)
+        group["panic_alert"] = panic_alert_row
+        panic_closes = group['close'].where(panic_alert_row)
+        group["panic_close_price_last_n_hours"] = panic_closes.shift(1).ffill(limit=n_trading_hours-1)
+        
+        shifted_ls = []
+        for i in range(1, n_trading_hours+1):
+            shifted = panic_alert_row.shift(i)
+            shifted_ls.append(shifted)
+            
+            group[f"shift_{i}"] = shifted
+            
+        shifted_df = pd.concat(shifted_ls, axis=1).fillna(False).astype(bool)
+        group["panic_exist_last_n_trading_hours"] = shifted_df.any(axis=1)
+        group.loc[~group["panic_exist_last_n_trading_hours"], "panic_close_price_last_n_hours"] = None
+        return group
+
+    processed =  df.sort_values(
+        ["ticker", "us_date", "hour"]
+    ).groupby("ticker", group_keys=False, as_index=False).apply(_fn)
+
+    return processed
+
+
+def add_is_green_bar(df):
+    df["IS_GREEN"] = (df["close"] - df["open"]) > 0
+    return df
+
+def add_below_ema_line(df, params_dict):
+    deviation_threshold = params_dict.get("kotegawa_deviation", 0.10) 
+    ma_deviation = (df["ema_20"] - df["close"]) / df["ema_20"]
+    condition_kotegawa_extreme = ma_deviation >= deviation_threshold
+
+    df["ema_deviation_threshold"] = deviation_threshold
+    df["below_ema"] = condition_kotegawa_extreme
+    return df
+
+def apply_kotegawa_rule_v2(df, params_dict):
+    df = add_panic_alert_last_n_trading_hours(df, params_dict)
+    df = add_is_green_bar(df)
+    df = add_below_ema_line(df, params_dict)
+    df["buy_signal"] = df["panic_exist_last_n_trading_hours"] & df["IS_GREEN"] & df["below_ema"]
+    return df
+
+def apply_kotegawa_rule_v3(df, params_dict):
+    df = add_panic_alert_last_n_trading_hours(df, params_dict)
+    df = add_is_green_bar(df)
+    df = add_below_ema_line(df, params_dict)
+
+    cond_more_than_3pct_above = (
+        df["close"] > (df["panic_close_price_last_n_hours"] * 1.03)
+    ) & (df["panic_close_price_last_n_hours"].notna())
+    
+    df["buy_signal"] = (
+        df["panic_exist_last_n_trading_hours"] & df["IS_GREEN"] & df["below_ema"] &
+        cond_more_than_3pct_above
+    )
+    return df
+
+def apply_kotegawa_rule_v4(df, params_dict):
+    df = add_panic_alert_last_n_trading_hours(df, params_dict)
+    df = add_is_green_bar(df)
+    df = add_below_ema_line(df, params_dict)
+    
+    cond_more_than_3pct_below = (
+        df["close"] < (df["panic_close_price_last_n_hours"] * 0.97)
+    ) & (df["panic_close_price_last_n_hours"].notna())
+    
+    df["buy_signal"] = (
+        df["panic_exist_last_n_trading_hours"] & df["IS_GREEN"] & df["below_ema"] &
+        cond_more_than_3pct_below
+    )
+    return df
+
+
 # Create a strategy registry dictionary
 STRATEGY_REGISTRY = {
     "baseline": apply_mean_reversion_rule,
     "shift_v1": apply_strategy_shift_v1,
     "shift_v2": apply_strategy_shift_v2,
     "kotegawa": apply_kotegawa_rule,
+    "kotegawa_v2": apply_kotegawa_rule_v2,
+    "kotegawa_v3": apply_kotegawa_rule_v3,
+    "kotegawa_v4": apply_kotegawa_rule_v4,
     "momentum_filter": apply_momentum_confirmed_rule
 }
 
@@ -138,6 +235,8 @@ DEFAULT_DICT = {
     "profit_target": profit_target,
     "stop_loss_target": stop_loss_target,
     "max_held_hours": max_held_hours,    
+    "last_n_trading_hours": 5, 
+    "kotegawa_deviation": 0.10,
 }
 
 def get_all_strategies():

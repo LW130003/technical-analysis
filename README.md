@@ -10,7 +10,6 @@ Notebook:
 In this step, we preprocess the one-minute data of Flat files into hourly data.
 
 Notebook:
-- ./technical-analysis/notebooks/volume_check.ipynb
 - ./technical-analysis/notebooks/volume_check_loop.ipynb
 
 
